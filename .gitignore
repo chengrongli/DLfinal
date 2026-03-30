@@ -1,0 +1,5 @@
+qwen3/
+**/__pycache__/
+unsloth_compiled_cache/
+ai_research_agent/src/config.py
+ai_research_agent/data/

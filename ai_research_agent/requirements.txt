@@ -4,3 +4,16 @@ duckduckgo-search>=6.2.13
 requests>=2.32.3
 python-dotenv>=1.0.1
 tqdm>=4.66.4
+
+# Local Qwen generation + fine-tuning stack (compatible ranges)
+torch>=2.10.0
+transformers>=4.57.0,<5.0.0  # 核心修复：锁死在 4.x 最高版本
+huggingface-hub>=0.34.0,<1.0.0  # 核心修复：保护 docling 不崩溃
+tokenizers>=0.21.0
+safetensors>=0.5.0
+datasets>=3.0.0
+accelerate>=0.35.0
+peft>=0.14.0
+trl>=0.14.0
+bitsandbytes>=0.45.0
+unsloth==2026.3.4

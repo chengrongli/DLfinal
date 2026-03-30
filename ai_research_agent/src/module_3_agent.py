@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-import requests
+from typing import Any
 
 from ai_research_agent.src.config import Settings
 from ai_research_agent.src.prompts.summary_templates import (
@@ -17,28 +17,100 @@ class ThreeLayerSummaryBuilder:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.logger = get_logger(self.__class__.__name__)
+        self._tokenizer: Any = None
+        self._model: Any = None
+
+    def _load_local_model(self) -> None:
+        if self._tokenizer is not None and self._model is not None:
+            return
+
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        try:
+            from transformers import BitsAndBytesConfig  # type: ignore
+        except Exception:  # pragma: no cover
+            BitsAndBytesConfig = None
+
+        self.logger.info("Loading local model: %s", self.settings.llm_model_name)
+        try:
+            self._tokenizer = AutoTokenizer.from_pretrained(
+                self.settings.llm_model_name,
+                trust_remote_code=True,
+                use_fast=False,
+            )
+
+            model_kwargs = {
+                "trust_remote_code": True,
+                "device_map": "auto",
+            }
+
+            if self.settings.llm_local_use_4bit and BitsAndBytesConfig is not None and torch.cuda.is_available():
+                model_kwargs["quantization_config"] = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                )
+            else:
+                model_kwargs["torch_dtype"] = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+
+            self._model = AutoModelForCausalLM.from_pretrained(
+                self.settings.llm_model_name,
+                **model_kwargs,
+            )
+        except Exception as exc:
+            self.logger.warning(
+                "Transformers local load failed (%s). Falling back to Unsloth loader.",
+                exc,
+            )
+            from unsloth import FastLanguageModel
+
+            self._model, self._tokenizer = FastLanguageModel.from_pretrained(
+                model_name=self.settings.llm_model_name,
+                max_seq_length=self.settings.llm_local_prompt_max_tokens,
+                dtype=None,
+                load_in_4bit=self.settings.llm_local_use_4bit,
+            )
+            try:
+                FastLanguageModel.for_inference(self._model)
+            except Exception:
+                pass
+
+        if self._tokenizer.pad_token_id is None and self._tokenizer.eos_token_id is not None:
+            self._tokenizer.pad_token = self._tokenizer.eos_token
 
     def _call_llm(self, prompt: str) -> str:
-        if not self.settings.llm_api_base or not self.settings.llm_api_key:
-            return ""
-
-        endpoint = self.settings.llm_api_base.rstrip("/") + "/chat/completions"
-        payload = {
-            "model": self.settings.llm_model_name,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.2,
-        }
-        headers = {
-            "Authorization": f"Bearer {self.settings.llm_api_key}",
-            "Content-Type": "application/json",
-        }
         try:
-            response = requests.post(endpoint, json=payload, headers=headers, timeout=60)
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"].strip()
+            import torch
+
+            self._load_local_model()
+            assert self._tokenizer is not None and self._model is not None
+
+            tokenized = self._tokenizer(
+                prompt,
+                return_tensors="pt",
+                truncation=True,
+                max_length=self.settings.llm_local_prompt_max_tokens,
+            )
+            model_device = next(self._model.parameters()).device
+            tokenized = {k: v.to(model_device) for k, v in tokenized.items()}
+
+            with torch.no_grad():
+                generated = self._model.generate(
+                    **tokenized,
+                    max_new_tokens=self.settings.llm_local_max_new_tokens,
+                    do_sample=False,
+                    temperature=0.0,
+                    pad_token_id=self._tokenizer.pad_token_id,
+                    eos_token_id=self._tokenizer.eos_token_id,
+                )
+
+            prompt_len = tokenized["input_ids"].shape[-1]
+            output_ids = generated[0][prompt_len:]
+            return self._tokenizer.decode(output_ids, skip_special_tokens=True).strip()
         except Exception as exc:
-            self.logger.warning("LLM call failed, fallback to template summary: %s", exc)
+            self.logger.warning("Local model generation failed, fallback to template summary: %s", exc)
             return ""
 
     def _fallback_summary(self, text: str, title: str) -> dict:

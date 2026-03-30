@@ -7,6 +7,7 @@ from ai_research_agent.src.config import get_settings
 from ai_research_agent.src.module_1_parser import PDFParser
 from ai_research_agent.src.module_2_search import SearchAssistant
 from ai_research_agent.src.module_3_agent import ThreeLayerSummaryBuilder
+from ai_research_agent.src.module_4_dataset import DatasetBuilder
 from ai_research_agent.src.utils import get_logger, list_pdf_files, pick_search_terms, write_json
 
 
@@ -43,8 +44,6 @@ def main() -> None:
         logger.warning("No PDF files found in %s", settings.raw_pdf_dir)
         return
 
-    sft_rows: list[dict] = []
-
     for pdf in pdf_files:
         parsed = parser_module.parse_pdf(pdf)
         md_path = parser_module.export_markdown(parsed)
@@ -75,9 +74,9 @@ def main() -> None:
         write_json(summary_path, summary)
         logger.info("Summary output: %s", summary_path.name)
 
-        sft_rows.append(builder_module.to_sft_row(parsed["title"], summary))
-
-    builder_module.export_dataset(sft_rows)
+    dataset_path = settings.dataset_dir / settings.dataset_file_name
+    dataset_builder = DatasetBuilder(settings.summaries_dir, dataset_path)
+    dataset_builder.build_sft_dataset()
     logger.info("Pipeline finished. Processed %s files.", len(pdf_files))
 
 

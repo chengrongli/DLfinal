@@ -45,11 +45,13 @@ def main():
     
     # Needs a formatting function depending on structure: instruction, input, output
     def formatting_prompts_func(examples):
-        inputs = examples["instruction"]
+        instructions = examples["instruction"]
+        inputs = examples.get("input", [""] * len(instructions))
         outputs = examples["output"]
         texts = []
-        for input_text, output_text in zip(inputs, outputs):
-            text = f"User: {input_text}\nAssistant: {output_text}" + tokenizer.eos_token
+        for instruction_text, input_text, output_text in zip(instructions, inputs, outputs):
+            user_text = instruction_text if not input_text else f"{instruction_text}\n\n输入：{input_text}"
+            text = f"User: {user_text}\nAssistant: {output_text}" + tokenizer.eos_token
             texts.append(text)
         return { "text" : texts }
         
