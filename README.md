@@ -25,7 +25,7 @@
 	- 位置：ai_research_agent/src/module_4_dataset.py
 
 ## 目录结构
-
+```
 ai_research_agent/
 ├── data/
 │   ├── raw_pdfs/             # 输入 PDF
@@ -52,7 +52,7 @@ ai_research_agent/
 ├── requirements.txt
 ├── environment.yml
 └── main.py                   # 主入口
-
+```
 ## 环境与依赖
 
 ### 方式一：pip
