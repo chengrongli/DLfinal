@@ -1,31 +1,61 @@
+from __future__ import annotations
+
 import json
-import os
-from .utils import save_jsonl
+from pathlib import Path
+
+from ai_research_agent.src.config import get_settings
+from ai_research_agent.src.utils import append_jsonl, get_logger
+
 
 class DatasetBuilder:
-    def __init__(self, raw_summaries_dir, output_file):
-        self.raw_summaries_dir = raw_summaries_dir
+    def __init__(self, summaries_dir: Path, output_file: Path) -> None:
+        self.summaries_dir = summaries_dir
         self.output_file = output_file
+        self.logger = get_logger(self.__class__.__name__)
 
-    def build_sft_dataset(self):
-        """
-        清洗模块3生成的三层总结，并转换为适合微调的 Qwen 格式 (或 Alpaca/ShareGPT 格式)
-        格式通常包含 instruction, input, output 等字段。
-        微调的目标模型为: Qwen3.5-9B-Claude-4.6-Opus-Reasoning-Distilled-v2-GGUF
-        """
-        sft_data = []
-        for file in os.listdir(self.raw_summaries_dir):
-            if file.endswith('.json'):
-                path = os.path.join(self.raw_summaries_dir, file)
-                with open(path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    
-                # 构造特定的 SFT 对话/问答格式
-                # ... Data cleaning and format converting ...
-                
-        # save_jsonl(sft_data, self.output_file)
-        print(f"Dataset generated at {self.output_file}")
+    def build_sft_dataset(self) -> list[dict]:
+        """Load three-layer summary JSON files and convert them to SFT rows."""
+        rows: list[dict] = []
+        if not self.summaries_dir.exists():
+            self.logger.warning("Summaries directory not found: %s", self.summaries_dir)
+            return rows
+
+        for summary_file in sorted(self.summaries_dir.glob("*.json")):
+            try:
+                payload = json.loads(summary_file.read_text(encoding="utf-8"))
+                title = summary_file.stem.replace(".summary", "")
+                rows.append(self._to_sft_row(title, payload))
+            except Exception as exc:
+                self.logger.warning("Skip invalid summary file %s: %s", summary_file.name, exc)
+
+        append_jsonl(self.output_file, rows)
+        self.logger.info("Dataset generated at %s with %s rows", self.output_file, len(rows))
+        return rows
+
+    @staticmethod
+    def _to_sft_row(title: str, summary: dict) -> dict:
+        instruction = (
+            "请对给定文献输出三层总结，包含概念层、细节层、应用层，要求结构清晰且可用于教学。"
+        )
+        output = (
+            f"标题：{title}\n"
+            f"概念层：{summary.get('concept_layer', '')}\n"
+            f"细节层：{summary.get('detail_layer', '')}\n"
+            f"应用层：{summary.get('application_layer', '')}"
+        )
+        return {
+            "instruction": instruction,
+            "input": title,
+            "output": output,
+        }
+
+
+def main() -> None:
+    settings = get_settings()
+    dataset_path = settings.dataset_dir / settings.dataset_file_name
+    builder = DatasetBuilder(settings.summaries_dir, dataset_path)
+    builder.build_sft_dataset()
+
 
 if __name__ == "__main__":
-    builder = DatasetBuilder("../data/summaries", "../data/dataset/sft_data.jsonl")
-    builder.build_sft_dataset()
+    main()

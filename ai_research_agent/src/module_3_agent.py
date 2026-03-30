@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import json
+import re
 import requests
 
 from ai_research_agent.src.config import Settings
+from ai_research_agent.src.prompts.summary_templates import (
+    APPLICATION_LEVEL_PROMPT,
+    CONCEPT_LEVEL_PROMPT,
+    DETAIL_LEVEL_PROMPT,
+)
 from ai_research_agent.src.utils import append_jsonl, get_logger
 
 
@@ -65,33 +72,32 @@ class ThreeLayerSummaryBuilder:
                     lines.append(f"- {row.get('title', '')}: {row.get('snippet', '')}")
             search_block = "\n".join(lines)
 
-        prompt = f"""
-你是研究助理，请基于以下论文内容输出三层总结，使用中文：
-1. 概念层：这篇文献主要讲了什么。
-2. 细节层：核心定义、命题、证明或推导逻辑如何展开。
-3. 应用层：可能的应用方向与后续研究问题。
-
-输出格式必须是 JSON，键为 concept_layer, detail_layer, application_layer。
-
-论文标题：{title}
-论文内容：
-{full_text[:12000]}
-
-可选联网补充：
-{search_block[:4000]}
-""".strip()
+        prompt = (
+            f"{CONCEPT_LEVEL_PROMPT}\n\n"
+            f"{DETAIL_LEVEL_PROMPT}\n\n"
+            f"{APPLICATION_LEVEL_PROMPT}\n\n"
+            "输出格式必须是 JSON，键为 concept_layer, detail_layer, application_layer。\n\n"
+            f"论文标题：{title}\n"
+            "论文内容：\n"
+            f"{full_text[:12000]}\n\n"
+            "可选联网补充：\n"
+            f"{search_block[:4000]}"
+        ).strip()
 
         model_response = self._call_llm(prompt)
         if not model_response:
             return self._fallback_summary(full_text, title)
 
         try:
-            # Prefer direct JSON content from model.
-            import json
-
             return json.loads(model_response)
         except Exception:
-            # Keep raw output while preserving schema shape.
+            match = re.search(r"\{[\s\S]*\}", model_response)
+            if match:
+                try:
+                    return json.loads(match.group(0))
+                except Exception:
+                    pass
+
             return {
                 "concept_layer": model_response,
                 "detail_layer": "模型输出非JSON，已将原始输出存入概念层。",

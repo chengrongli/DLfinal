@@ -12,6 +12,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 class Settings:
     raw_pdf_dir: Path = PROJECT_ROOT / "data" / "raw_pdfs"
     parsed_md_dir: Path = PROJECT_ROOT / "data" / "parsed_mds"
+    search_cache_dir: Path = PROJECT_ROOT / "data" / "search_cache"
+    summaries_dir: Path = PROJECT_ROOT / "data" / "summaries"
     dataset_dir: Path = PROJECT_ROOT / "data" / "dataset"
 
     parsed_json_suffix: str = ".parsed.json"
@@ -24,12 +26,14 @@ class Settings:
     # For optional OpenAI-compatible API usage.
     llm_api_base: str = os.getenv("LLM_API_BASE", "")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
-    llm_model_name: str = os.getenv("LLM_MODEL_NAME", "Jackrong/Qwen3.5-9B-Claude-4.6-Opus-Reasoning-Distilled-v2-GGUF")
+    llm_model_name: str = os.getenv("LLM_MODEL_NAME", "Jackrong/Qwen3.5-9B-Claude-4.6-Opus-Reasoning-Distilled-v2")
 
 
 def get_settings() -> Settings:
     settings = Settings()
     settings.raw_pdf_dir.mkdir(parents=True, exist_ok=True)
     settings.parsed_md_dir.mkdir(parents=True, exist_ok=True)
+    settings.search_cache_dir.mkdir(parents=True, exist_ok=True)
+    settings.summaries_dir.mkdir(parents=True, exist_ok=True)
     settings.dataset_dir.mkdir(parents=True, exist_ok=True)
     return settings

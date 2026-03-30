@@ -6,7 +6,7 @@ from pathlib import Path
 from ai_research_agent.src.config import get_settings
 from ai_research_agent.src.module_1_parser import PDFParser
 from ai_research_agent.src.module_2_search import SearchAssistant
-from ai_research_agent.src.module_3_builder import ThreeLayerSummaryBuilder
+from ai_research_agent.src.module_3_agent import ThreeLayerSummaryBuilder
 from ai_research_agent.src.utils import get_logger, list_pdf_files, pick_search_terms, write_json
 
 
@@ -69,7 +69,7 @@ def main() -> None:
         )
 
         summary_path = (
-            settings.parsed_md_dir
+            settings.summaries_dir
             / f"{Path(parsed['file_name']).stem}{settings.summary_json_suffix}"
         )
         write_json(summary_path, summary)

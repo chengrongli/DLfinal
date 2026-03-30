@@ -7,7 +7,7 @@ set -euo pipefail
 
 MODE=${1:-llama_factory}
 DATA_PATH=${DATA_PATH:-data/dataset/sft_data.jsonl}
-MODEL_NAME=${MODEL_NAME:-Jackrong/Qwen3.5-9B-Claude-4.6-Opus-Reasoning-Distilled-v2-GGUF}
+MODEL_NAME=${MODEL_NAME:-Jackrong/Qwen3.5-9B-Claude-4.6-Opus-Reasoning-Distilled-v2}
 OUTPUT_DIR=${OUTPUT_DIR:-outputs/qwen3_5_9b_sft}
 
 if [[ ! -f "$DATA_PATH" ]]; then
@@ -37,7 +37,7 @@ elif [[ "$MODE" == "unsloth" ]]; then
   cat <<'EOF'
 Unsloth mode selected.
 Please create/train script based on your GPU setup, for example:
-  python train_unsloth.py --data data/dataset/sft_data.jsonl --model Jackrong/Qwen3.5-9B-Claude-4.6-Opus-Reasoning-Distilled-v2-GGUF
+  python train_unsloth.py --data data/dataset/sft_data.jsonl --model Jackrong/Qwen3.5-9B-Claude-4.6-Opus-Reasoning-Distilled-v2
 EOF
 else
   echo "Unknown mode: $MODE"
