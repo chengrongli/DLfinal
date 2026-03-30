@@ -1,0 +1,10 @@
+{
+    "venvPath": ".",
+    "extraPaths": [
+        "./ai_research_agent",
+        "./ai_research_agent/src"
+    ],
+    "include": [
+        "ai_research_agent"
+    ]
+}

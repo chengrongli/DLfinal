@@ -1,0 +1,5 @@
+pypdf>=4.2.0
+duckduckgo-search>=6.2.13
+requests>=2.32.3
+python-dotenv>=1.0.1
+tqdm>=4.66.4
