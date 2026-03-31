@@ -64,18 +64,19 @@ def main() -> None:
         summary = builder_module.build_three_layers(
             title=parsed["title"],
             full_text=parsed["full_text"],
+            doc_id=Path(parsed["file_name"]).stem,
             search_context=search_context,
         )
 
         summary_path = (
-            settings.summaries_dir
+            settings.output_dir
             / f"{Path(parsed['file_name']).stem}{settings.summary_json_suffix}"
         )
         write_json(summary_path, summary)
         logger.info("Summary output: %s", summary_path.name)
 
     dataset_path = settings.dataset_dir / settings.dataset_file_name
-    dataset_builder = DatasetBuilder(settings.summaries_dir, dataset_path)
+    dataset_builder = DatasetBuilder(settings.output_dir, dataset_path)
     dataset_builder.build_sft_dataset()
     logger.info("Pipeline finished. Processed %s files.", len(pdf_files))
 

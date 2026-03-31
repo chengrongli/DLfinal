@@ -53,7 +53,7 @@ class DatasetBuilder:
 def main() -> None:
     settings = get_settings()
     dataset_path = settings.dataset_dir / settings.dataset_file_name
-    builder = DatasetBuilder(settings.summaries_dir, dataset_path)
+    builder = DatasetBuilder(settings.output_dir, dataset_path)
     builder.build_sft_dataset()
 
 
