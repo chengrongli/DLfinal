@@ -50,6 +50,9 @@ ai_research_agent/
 ### 依赖安装
 
 ```bash
+在 DL-PROJECT目录下
+uv venv
+source .venv/bin/activate
 cd ai_research_agent
 uv pip sync requirements.txt
 ```
