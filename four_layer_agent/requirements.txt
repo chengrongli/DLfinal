@@ -1,0 +1,10 @@
+# Four-layer agent dependencies
+sentence-transformers>=2.2.0
+numpy>=1.24.0
+
+# PDF parsing (shared with ai_research_agent)
+docling>=2.0.0
+
+# Local LLM support (shared with ai_research_agent)
+torch>=2.0.0
+transformers>=4.30.0

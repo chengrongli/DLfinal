@@ -2,47 +2,52 @@
 
 ## 1）项目目标与实现路径
 
-本项目的目标是把论文 PDF 自动转成可训练数据，并用于本地 Qwen 模型生成与微调。
+本项目的目标是把论文 PDF 自动转成结构化知识，通过四层架构提取概念、细节和应用，并生成可读性强的总结。
 
 整体路径如下：
 
-1. PDF 解析为 Markdown 和结构化 JSON。
-2. 使用本地 Qwen 生成三层总结（概念层、细节层、应用层）。
-3. 把总结结果转换为 SFT 数据集（JSONL）。
-4. 使用该数据集进行 LoRA 微调，或直接用模型做生成。
+1. PDF 解析为 Markdown 和结构化文本。
+2. 四层处理架构：
+   - **Layer 1 - 概念提取层**：提取核心概念及其关系，构建概念图
+   - **Layer 2 - 细节生成层**：基于概念图生成详细技术内容
+   - **Layer 3 - 应用生成层**：生成实际应用场景和代码示例
+   - **Layer 4 - 总结生成层**：整合前三层内容，生成可读性强的 Markdown 总结
 
 当前默认使用本地模型，不依赖 API Key。
 
 ## 2）项目架构
 
 ```text
-ai_research_agent/
+four_layer_agent/
 ├── data/
 │   ├── raw_pdfs/             # 输入 PDF
-│   ├── parsed_mds/           # Module 1 输出: .md + .parsed.json
-│   ├── search_cache/         # Module 2 输出: 搜索缓存（可选）
-│   ├── summaries/            # Module 3 输出: .raw.txt
-│   ├── output/               # Module 3 输出: .summary.json
-│   └── dataset/
-│       └── sft_data.jsonl    # Module 4 输出: 训练集
+│   └── output/               # Layer 4 输出: .four_layer.json + .summary.md
 ├── src/
-│   ├── config.py
-│   ├── module_1_parser.py
-│   ├── module_2_search.py
-│   ├── module_3_agent.py
-│   ├── module_4_dataset.py
-│   ├── prompts/
-│   │   └── summary_templates.py
-│   └── utils.py
-├── scripts/
-│   ├── run_pipeline.sh
-│   ├── train_unsloth.py
-│   ├── finetune.sh
-│   ├── finetune_docling.sh
-│   └── train_docling.py
-├── requirements.txt
-├── environment.yml
-└── main.py
+│   ├── core/                 # 核心配置与数据模型
+│   │   ├── config.py         # 全局配置
+│   │   └── data_models.py    # 数据结构定义
+│   ├── parsers/              # PDF 解析模块
+│   │   └── pdf_parser.py     # Docling PDF 解析器
+│   ├── embeddings/           # 向量嵌入模块
+│   │   └── encoder.py        # sentence-transformers 编码器
+│   ├── layer_1_concept/      # Layer 1: 概念提取
+│   │   └── concept_extractor.py
+│   ├── layer_2_detail/       # Layer 2: 细节生成
+│   │   ├── detail_generator.py
+│   │   └── relationship_content.py
+│   ├── layer_3_application/  # Layer 3: 应用生成
+│   │   ├── application_generator.py
+│   │   ├── concept_classifier.py
+│   │   └── type_content.py
+│   └── layer_4_summary/      # Layer 4: 总结生成
+│       └── summary_generator.py
+├── requirements.txt          # 依赖列表
+└── main.py                   # 主流程：串联四层架构
+```
+
+**数据流向**：
+```
+PDF → Layer 1 概念提取 → Layer 2 细节生成 → Layer 3 应用生成 → Layer 4 总结生成
 ```
 
 ## 3）环境与配置需求
@@ -50,208 +55,204 @@ ai_research_agent/
 ### 依赖安装
 
 ```bash
-在 DL-PROJECT目录下
+在 DL_project 目录下
 uv venv
 source .venv/bin/activate
-cd ai_research_agent
-uv pip sync requirements.txt
+uv pip sync four_layer_agent/requirements.txt
 ```
 
-requirements.txt 已包含解析、推理、微调依赖（docling、transformers、unsloth、trl、peft 等）。
-
-### 可选 conda 环境
-
-```bash
-cd ai_research_agent
-conda env create -f environment.yml
-conda activate ai-research-agent
-```
+requirements.txt 已包含解析、推理依赖（docling、sentence-transformers、torch、transformers 等）。
 
 ### 建议先下载 Qwen3-8B（不要依赖自动下载）
 
-建议在首次运行前先把模型权重下载到本地，再修改 `config.py` 指向本地目录，避免运行时自动下载带来的速度慢和失败问题。
+建议在首次运行前先把模型权重下载到本地，再修改环境变量指向本地目录，避免运行时自动下载带来的速度慢和失败问题。
 
-方式一：浏览器下载
+**方式一：浏览器下载**
 
 1. 打开 `https://huggingface.co/Qwen/Qwen3-8B/tree/main`
 2. 下载模型文件到本地目录（例如 `DL_project/qwen3/`）
 3. 确保包含 `config.json`、`tokenizer.json`、`model.safetensors.index.json` 以及所有 `model-*.safetensors` 分片
 
-方式二：命令行下载
+**方式二：命令行下载**
 
 ```bash
 git lfs install
 git clone https://huggingface.co/Qwen/Qwen3-8B ./qwen3
 ```
 
-下载完成后，在 `ai_research_agent/src/config.py` 中将 `LLM_MODEL_NAME` 默认值改为本地模型目录（例如 `.../DL_project/qwen3`）。
+### 环境变量配置
 
-### 首次初始化 config.py
-
-首次运行前，请先在 `ai_research_agent/src/` 下创建 `config.py`，做法是把 `config_clean.py` 复制一份：
-
-```bash
-cd ai_research_agent/src
-cp config_clean.py config.py
-```
-
-然后按你的环境修改 `config.py` 中的 `LLM_MODEL_NAME` 默认值。
-
-### 环境变量在哪里查看和修改
-
-本地运行必须通过环境变量指定本地模型路径，否则会尝试下载远程模型：
+本地运行必须通过环境变量指定本地模型路径：
 
 ```bash
 export LLM_MODEL_NAME="/path/to/your/local/qwen3"
 export HF_HUB_OFFLINE=1
 ```
 
-首次运行建议联网下载 Docling 布局模型（以及可能的依赖模型），请先允许联网：
+**关键环境变量**：
 
-```bash
-export HF_HUB_OFFLINE=0
-```
+- `LLM_MODEL_NAME`：本地模型路径
+- `LLM_LOCAL_MAX_NEW_TOKENS`：最大生成 token 数（默认 512）
+- `LLM_LOCAL_PROMPT_MAX_TOKENS`：最大 prompt token 数（默认 4096）
+- `LLM_LOCAL_USE_4BIT`：是否使用 4bit 量化（默认 0）
 
-首次下载完成后可切回离线模式（不强求）：
-
-```bash
-export HF_HUB_OFFLINE=1
-```
-
-本项目读取系统环境变量，关键变量如下：
-
-- LLM_MODEL_NAME
-- LLM_LOCAL_MAX_NEW_TOKENS
-- LLM_LOCAL_PROMPT_MAX_TOKENS
-- LLM_LOCAL_USE_4BIT
-
-临时查看（当前 shell）：
-
-```bash
-echo "$LLM_MODEL_NAME"
-echo "$LLM_LOCAL_MAX_NEW_TOKENS"
-```
-
-临时修改（只对当前终端生效）：
+临时修改（当前 shell）：
 
 ```bash
 export LLM_MODEL_NAME="/path/to/your/local/qwen3"
 export LLM_LOCAL_MAX_NEW_TOKENS=768
-export LLM_LOCAL_PROMPT_MAX_TOKENS=4096
 export LLM_LOCAL_USE_4BIT=1
 ```
 
-长期修改（每次打开终端自动生效）：
+长期修改（写入 ~/.bashrc）：
 
-1. 把 export 命令写入 ~/.bashrc
-2. 执行 source ~/.bashrc
+```bash
+echo 'export LLM_MODEL_NAME="/path/to/your/local/qwen3"' >> ~/.bashrc
+echo 'export LLM_LOCAL_MAX_NEW_TOKENS=768' >> ~/.bashrc
+source ~/.bashrc
+```
 
-## 4）各模块作用（重点：Module 1/3/4）
+## 4）各模块作用
 
-### Module 1：PDF 解析（重点）
+### Layer 1：概念提取层
 
-- 文件：src/module_1_parser.py
-- 作用：使用 Docling 将 PDF 转为 Markdown 和结构化 JSON。
-- 输入：data/raw_pdfs/*.pdf
-- 输出：data/parsed_mds/*.md 与 *.parsed.json
+- **文件**：src/layer_1_concept/concept_extractor.py
+- **作用**：
+  - 从 PDF 中提取核心概念及其定义
+  - 构建概念关系图（包含概念间的关系类型和证据）
+  - 生成全局概念总结
+- **输入**：解析后的 PDF 文本
+- **输出**：概念图（concepts + relationships + global_summary）
 
-### Module 3：本地 Qwen 生成总结（重点）
+### Layer 2：细节生成层
 
-- 文件：src/module_3_agent.py
-- 作用：本地加载 Qwen，先生成三层总结的纯文本，再解析为结构化 JSON。
-- 输入：论文正文（来自 Module 1），可选搜索上下文。
-- 输出：
-  - data/summaries/*.raw.txt（模型原始输出）
-  - data/output/*.summary.json（解析后的结构化结果）
-- 说明：Module 3 不直接做参数训练，它负责生成训练前的数据原料。
-  - 提示词逻辑：summary_templates.py 中三个 prompt 分别负责概念层、细节层、应用层，各自只输出一行文本。
-  - 生成控制：
-    - 每层单独调用模型，避免多层混杂输出。
-    - 禁止采样，使用确定性生成（`do_sample=False`）。
-    - 限制最大生成长度为 100（`max_new_tokens<=100`）。
-    - 遇到换行即停止，避免多段重复。
-    - 加入重复惩罚与 `no_repeat_ngram_size` 抑制重复。
-  - 输出清洗：
-    - raw 文件只保留每层输出的第一行。
-    - JSON 仅抽取每层的首行内容，并裁剪到 100 字以内。
+- **文件**：src/layer_2_detail/detail_generator.py
+- **作用**：
+  - 基于概念图生成详细技术内容
+  - 为每个概念生成深入的原理说明
+  - 提取概念间关系的具体细节
+- **输入**：Layer 1 的概念图
+- **输出**：详细内容字典（按概念分组的详细说明）
 
-### Module 4：训练集构造（重点）
+### Layer 3：应用生成层
 
-- 文件：src/module_4_dataset.py
-- 作用：把 summaries 目录下的总结 JSON 转换为 SFT JSONL。
-- 输入：data/output/*.summary.json
-- 输出：data/dataset/sft_data.jsonl
-- 样本字段：instruction、input、output
+- **文件**：src/layer_3_application/application_generator.py
+- **作用**：
+  - 生成实际应用场景
+  - 提供代码示例和实现案例
+  - 工业应用案例分析
+- **输入**：Layer 1 的概念图和 Layer 2 的详细内容
+- **输出**：应用内容、概念分类、代码示例、工业案例
 
-### 其他模块
+### Layer 4：总结生成层
 
-- config.py 是全局配置中心，主要负责：
+- **文件**：src/layer_4_summary/summary_generator.py
+- **作用**：
+  - 整合前三层的输出
+  - 生成结构化的 Markdown 总结
+  - 包含公式提取和格式化
+- **输入**：前三层的结构化输出
+- **输出**：可读性强的 `.summary.md` 文件
 
-1. 统一管理目录路径（raw_pdfs、parsed_mds、summaries、dataset 等）。
-2. 管理文件命名规则（summary 后缀、dataset 文件名等）。
-3. 管理模型推理参数（模型名、max_new_tokens、是否 4bit）。
-4. 在程序启动时自动创建所需目录，避免路径不存在导致报错。
+### 核心模块
 
+- **config.py**：全局配置中心
+  - 统一管理目录路径
+  - 管理模型推理参数
+  - 自动创建所需目录
 
-- Module 2（src/module_2_search.py）：可选搜索增强与缓存。
-- Main（main.py）：串联 Module 1 -> Module 3 -> Module 4。
+- **data_models.py**：数据结构定义
+  - `FourLayerSummary`：四层总结的完整数据结构
+  - `Layer1Output`、`Layer2Output`、`Layer3Output`：各层输出结构
+
+- **pdf_parser.py**：PDF 解析器
+  - 使用 Docling 将 PDF 转为文本和 Markdown
+  - 支持论文和课件两种文档类型
 
 ## 5）具体调用方法
 
-先明确主命令行为：
+### 5.1 基本运行
+
+处理所有 PDF 文件：
 
 ```bash
-python -m ai_research_agent.main --disable-search
+cd DL_project
+python -m four_layer_agent.main
 ```
 
-该命令会一次性执行：
-
-1. Module 1：解析 PDF（生成 `.md` 和 `.parsed.json`）
-2. Module 3：生成三层总结（生成 `.summary.json`）
-3. Module 4：写入训练集（生成 `sft_data.jsonl`）
-
-`--disable-search` 只会关闭 Module 2 的联网搜索，不会关闭 1/3/4。
-
-### 5.1 不微调下的运行方式
-
-适用场景：只做论文解析 + 总结 + 数据集生成，不做训练。
+处理单个 PDF 文件：
 
 ```bash
-DL_project 目录下
-python -m ai_research_agent.main --limit 1 --disable-search
+python -m four_layer_agent.main --pdf-file data/raw_pdfs/your_paper.pdf
 ```
 
-输出位置：
+### 5.2 文档类型选择
 
-1. `ai_research_agent/data/parsed_mds/*.md`
-2. `ai_research_agent/data/parsed_mds/*.parsed.json`
-3. `ai_research_agent/data/output/*.summary.json`
-4. `ai_research_agent/data/summaries/*.raw.txt`
-5. `ai_research_agent/data/dataset/sft_data.jsonl`
-
-### 5.2 微调下的运行方式
-
-适用场景：先生成数据，再用 LoRA 训练。
+支持自动检测或手动指定文档类型：
 
 ```bash
-DL_project 目录下
-export HF_HUB_OFFLINE=1 #这里记得切成离线的， 不然还会自己下载
-python -m ai_research_agent.main --disable-search
-python -m ai_research_agent.main --limit 1 --disable-search
-python ai_research_agent/scripts/train_unsloth.py \
-  --data ai_research_agent/data/dataset/sft_data.jsonl \
-  --model /path/to/your/local/qwen3 \
-  --output_dir ai_research_agent/output/qwen3_8b_lora
+# 自动检测（默认）
+python -m four_layer_agent.main --doc-type auto
+
+# 论文类型
+python -m four_layer_agent.main --doc-type paper
+
+# 课件类型
+python -m four_layer_agent.main --doc-type lecture
 ```
 
-#### 训练报错排查（数据集为空）
+### 5.3 缓存控制
 
-如果训练时报 `SchemaInferenceError` 或提示 0 examples，说明 `sft_data.jsonl` 还是空文件。
-需要重新生成数据集：
+强制重新处理（覆盖缓存）：
 
 ```bash
-python -m ai_research_agent.main --limit 1 --disable-search
+python -m four_layer_agent.main --overwrite-cache
 ```
 
-确认 `ai_research_agent/data/dataset/sft_data.jsonl` 有内容后再训练。
+## 6）输出说明
 
+运行完成后，输出位于 `four_layer_agent/data/output/`：
+
+1. **`{doc_id}.four_layer.json`**：完整的结构化数据
+   - Layer 1：概念图（概念 + 关系 + 全局总结）
+   - Layer 2：详细内容
+   - Layer 3：应用内容
+   - 元数据：时间戳、文档 ID 等
+
+2. **`{doc_id}.summary.md`**：可读性强的 Markdown 总结
+   - 整合四层内容
+   - 包含公式提取和格式化
+   - 适合直接阅读或进一步编辑
+
+## 7）与旧版本 (ai_research_agent) 的主要变化
+
+1. **架构简化**：从五层（含搜索层）简化为四层架构
+2. **模块重组**：
+   - 旧 `module_1_parser` → `parsers/pdf_parser`
+   - 旧 `module_3_agent` → `layer_1_concept` + `layer_2_detail` + `layer_3_application`
+   - 新增 `layer_4_summary` 用于最终总结生成
+3. **搜索层移除**：不再使用搜索功能，专注本地模型生成
+4. **数据模型统一**：使用 `data_models.py` 统一管理数据结构
+5. **输出格式**：新增 `.summary.md` 格式，提高可读性
+
+## 8）故障排查
+
+### 模型加载失败
+
+确保已设置 `LLM_MODEL_NAME` 环境变量：
+
+```bash
+echo $LLM_MODEL_NAME
+```
+
+### PDF 解析错误
+
+检查 PDF 文件是否损坏，尝试重新下载或转换 PDF。
+
+### 概念图生成失败
+
+检查模型是否正确加载，确认 `LLM_MODEL_NAME` 指向正确的本地模型目录。
+
+### 总结文件未生成
+
+检查 `.four_layer.json` 文件是否存在，确认前三层处理成功。
