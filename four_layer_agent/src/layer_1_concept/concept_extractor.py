@@ -596,13 +596,17 @@ class ConceptExtractor:
     def _find_co_occurrence(
         self, term1: str, term2: str, text: str
     ) -> Optional[str]:
-        """Find sentence or paragraph where both terms appear."""
+        """Find sentence or paragraph where both terms appear (case-insensitive)."""
+        # Compile case-insensitive patterns for more flexible matching
+        pattern1 = re.compile(r'\b' + re.escape(term1) + r'\b', re.IGNORECASE)
+        pattern2 = re.compile(r'\b' + re.escape(term2) + r'\b', re.IGNORECASE)
+
         # First try sentence-level (more precise evidence)
         sentences = re.split(r'[。！？.!?\n]', text)
         for sent in sentences:
             if len(sent.strip()) < 10:
                 continue
-            if term1 in sent and term2 in sent:
+            if pattern1.search(sent) and pattern2.search(sent):
                 return sent.strip()
 
         # Fallback: paragraph-level co-occurrence
@@ -610,10 +614,10 @@ class ConceptExtractor:
         for para in paragraphs:
             if len(para.strip()) < 30:
                 continue
-            if term1 in para and term2 in para:
+            if pattern1.search(para) and pattern2.search(para):
                 # Return the most relevant sentence from the paragraph
                 for sent in re.split(r'[。！？.!?]', para):
-                    if term1 in sent or term2 in sent:
+                    if pattern1.search(sent) or pattern2.search(sent):
                         return sent.strip()
                 return para[:300].strip()
 
@@ -702,8 +706,10 @@ class ConceptExtractor:
 关系类型（只能选择以下类型之一）：
 {allowed_rels}
 
+要求：description 必须用中文描述，不要用英文。
+
 输出JSON：
-{{"type": "关系类型", "description": "关系描述", "is_bidirectional": false, "confidence": 0.8}}
+{{"type": "关系类型", "description": "中文关系描述", "is_bidirectional": false, "confidence": 0.8}}
 """
 
         try:

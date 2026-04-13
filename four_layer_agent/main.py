@@ -331,10 +331,25 @@ def main(
     # Get PDF files to process
     if pdf_file:
         pdf_path = Path(pdf_file)
-        if not pdf_path.is_absolute():
-            # Resolve relative to the four_layer_agent directory
-            from four_layer_agent.src.core.config import FOUR_LAYER_ROOT
-            pdf_path = FOUR_LAYER_ROOT / pdf_file
+        if pdf_path.is_absolute():
+            # Absolute path as-is
+            pass
+        elif pdf_path.exists():
+            # Relative path that exists (from CWD)
+            pass
+        else:
+            # Treat as filename, search in raw_pdfs_dir
+            from four_layer_agent.src.core.config import PROJECT_ROOT, FOUR_LAYER_ROOT
+            candidate = settings.raw_pdfs_dir / pdf_path.name
+            if candidate.exists():
+                pdf_path = candidate
+            else:
+                # Try PROJECT_ROOT path for backward compatibility
+                candidate = PROJECT_ROOT / pdf_path
+                if candidate.exists():
+                    pdf_path = candidate
+                else:
+                    raise FileNotFoundError(f"PDF file not found: {pdf_file} (tried {settings.raw_pdfs_dir} and {PROJECT_ROOT})")
         pdf_files = [pdf_path]
     else:
         pdf_files = list(settings.raw_pdfs_dir.glob("*.pdf"))

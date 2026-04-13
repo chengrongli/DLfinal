@@ -13,10 +13,7 @@ from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
 
-# Import utilities from existing project
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "ai_research_agent"))
-from ai_research_agent.src.utils import clean_text, get_logger
+from four_layer_agent.src.utils import clean_text, get_logger
 
 
 class PDFParser:
