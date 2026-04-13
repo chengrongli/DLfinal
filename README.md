@@ -224,18 +224,7 @@ python -m four_layer_agent.main --overwrite-cache
    - 包含公式提取和格式化
    - 适合直接阅读或进一步编辑
 
-## 7）与旧版本 (ai_research_agent) 的主要变化
-
-1. **架构简化**：从五层（含搜索层）简化为四层架构
-2. **模块重组**：
-   - 旧 `module_1_parser` → `parsers/pdf_parser`
-   - 旧 `module_3_agent` → `layer_1_concept` + `layer_2_detail` + `layer_3_application`
-   - 新增 `layer_4_summary` 用于最终总结生成
-3. **搜索层移除**：不再使用搜索功能，专注本地模型生成
-4. **数据模型统一**：使用 `data_models.py` 统一管理数据结构
-5. **输出格式**：新增 `.summary.md` 格式，提高可读性
-
-## 8）故障排查
+## 7）故障排查
 
 ### 模型加载失败
 
